@@ -1,86 +1,140 @@
 # plato-runtime-kernel
 
-PLATO spatial spreadsheet runtime — room-as-cell tensor bridge, plain-English assertion traps, delta compression, three-way merge
+*The spatial spreadsheet engine. Rooms are cells. Cells are tensors. Markdown is the AST. Plain-English bullets are runtime assertions. Delta compression for sync. Three-way merge for conflict. This is the Plato Matrix's brain.*
 
-## Overview
+## Why This Exists
 
-PLATO Runtime Kernel — the spatial spreadsheet engine.
+The Plato Engine Block (the C/Rust room runtime) handles sensors, actuators, ticks, and text protocols. But a real system has hundreds of rooms that need to be organized, connected, and kept in sync. The plato-runtime-kernel provides the spatial model: rooms as cells in a tensor grid, agents as batons passing between rooms, and Markdown specifications as behavioral contracts.
 
-Rooms are cells. Cells are tensors. Markdown is the AST.
+This crate is where the Plato Matrix stops being "a bunch of sensor nodes" and becomes "a coherent space."
 
 ## Architecture
 
-This crate sits within the **five-layer Oxide Stack**:
-
-| Layer | Crate | Role |
-|-------|-------|------|
-| 1 | open-parallel | Async runtime (tokio fork) |
-| 2 | pincher | "Vector DB as runtime, LLM as compiler" |
-| 3 | flux-core | Bytecode VM + A2A agent protocol |
-| 4 | cuda-oxide | Flux→MIR→Pliron→NVVM→PTX compiler |
-| 5 | cudaclaw | Persistent GPU kernels, warp consensus, SmartCRDT |
-
-The key insight: **ternary values {-1, 0, +1} map directly to GPU compute**. They pack 16× denser than FP32, enable XNOR+popcount matmul, and conservation laws become compile-time checks.
-
-## Stats
-
-| Metric | Value |
-|--------|-------|
-| Tests | 24 |
-| Lines of Code | 363 |
-| Public API Surface | 29 items |
-| License | MIT |
-
-## Installation
-
-```toml
-[dependencies]
-plato-runtime-kernel = "0.1.0"
 ```
+                    ┌─────────────────────────────┐
+                    │      Tensor Grid             │
+                    │  ┌──────┬──────┬──────┐      │
+                    │  │ A1   │ A2   │ A3   │      │
+                    │  │Engine│Wheel │Back- │      │
+                    │  │Room  │house │deck  │      │
+                    │  ├──────┼──────┼──────┤      │
+                    │  │ B1   │ B2   │ B3   │      │
+                    │  │Galley│Bilge │Crow's│      │
+                    │  │      │      │Nest  │      │
+                    │  └──────┴──────┴──────┘      │
+                    │         ↑                    │
+                    │    Baton (agent state)        │
+                    │    passing between cells      │
+                    └─────────────────────────────┘
+```
+
+### Five Depth Levels
+
+Every room exists at one of five depths, from macro to micro:
+
+| Depth | Name | Analogy | What lives here |
+|-------|------|---------|----------------|
+| 0 | Floor | Dance floor | Agents, humans, autonomous behavior |
+| 1 | Board | DJ board | Instruments, tools, control surfaces |
+| 2 | Panel | Instrument panel | Settings, presets, configurations |
+| 3 | Code | Code editor | Functions, algorithms, logic |
+| 4 | Metal | Transistors | Raw bits, hardware registers, firmware |
+
+A room can zoom between depths. The engine room at Floor depth shows live gauges. At Metal depth, it shows register values.
+
+### Key Types
+
+- **`RoomIdentity`** — A room's spatial identity: room_id, tensor hash, grid position, depth level
+- **`RoomContract`** — The ROOM.json schema defining a room's borders, topology, and runtime assets
+- **`RoomTopology`** — Parent room, adjacent rooms, traversal history with weights
+- **`Baton`** — Immutable execution state passing through rooms. An agent's "carry-on luggage."
+- **`AssertionResult`** — Validation of output against plain-English behavioral constraints
+- **`GridBridge`** — Maps spreadsheet cell coordinates to room paths
+- **`TutorLoop`** — The compile-test-refine cycle: generate output, validate against spec, iterate
+
+### The Baton Pattern
+
+Agents don't live in rooms — they pass through them. A Baton carries the agent's state from room to room:
+
+```rust
+let mut baton = Baton::new("watchdog", "/rooms/engine_room");
+baton.set_data("coolant_threshold", "95");
+baton.advance_to("/rooms/wheelhouse");
+// Baton now in wheelhouse, carrying engine room data
+```
+
+Traversals are recorded in the room's topology. Over time, the traversal weights reveal which rooms are most connected — the spatial equivalent of PageRank.
+
+### Assertion Traps
+
+Every room can have a Markdown specification with a `## Behavioral Constraints` section. The runtime extracts these as plain-English assertions:
+
+```markdown
+## 🛑 Behavioral Constraints
+* Output must contain Resource ID
+* Shall not contain CRITICAL
+```
+
+The `validate_payload` function checks output against these. The `TutorLoop` cycles until all assertions pass. This is the self-correcting mechanism: rooms don't just run, they verify they're running correctly.
 
 ## Usage
 
 ```rust
 use plato_runtime_kernel::*;
-// See src/lib.rs tests for complete working examples
+
+// Create a room contract
+let mut contract = RoomContract {
+    room_id: "/engine_room".into(),
+    identity: RoomIdentity {
+        room_id: "/engine_room".into(),
+        tensor_hash: "abc123".into(),
+        grid_position: (0, 0),
+        depth: RoomDepth::Floor,
+    },
+    topology: RoomTopology {
+        parent_room: Some("/boat".into()),
+        adjacent_rooms: vec!["/wheelhouse".into(), "/bilge".into()],
+        traversal_history: vec![],
+    },
+    runtime_assets: RuntimeAssets {
+        specification: "ROOM.md".into(),
+        reflex_bindings: HashMap::new(),
+    },
+};
+
+// Record traversal (agent moved to wheelhouse)
+contract.record_traversal("/wheelhouse", "watchdog_baton", 42);
+
+// Create a baton and pass it through rooms
+let mut baton = Baton::new("watchdog", "/engine_room");
+baton.set_data("coolant_temp", "96.3");
+baton.advance_to("/wheelhouse");
+
+// Validate against behavioral constraints
+let spec = "## 🛑 Constraints\n* output must contain OK\n* shall not contain ERROR";
+let result = validate_payload("Status: OK, temp: 96.3", &extract_assertions(spec));
+assert!(result.passed);
+
+// Tutor loop: iterate until assertions pass
+let mut tutor = TutorLoop::new(5);
+let output = generate_output();
+let result = tutor.cycle(&output, spec);
+if result.passed { /* good to go */ }
 ```
 
-### Key Types
+## The Deeper Idea
 
-```
-- pub struct RoomIdentity {
-- pub enum RoomDepth {
-- pub struct RoomContract {
-- pub struct RoomTopology {
-- pub struct TraversalRecord {
-- pub struct RuntimeAssets {
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-    pub fn to_json(&self) -> String {
-    pub fn is_adjacent(&self, room_id: &str) -> bool {
-    pub fn record_traversal(&mut self, target: &str, baton_id: &str, tick: u64) {
-```
+The plato-runtime-kernel treats space as a first-class data structure. Rooms aren't just endpoints — they're cells in a tensor. The grid position, depth level, and traversal weights form a rich spatial graph that agents can navigate and reason about.
 
-## Design Philosophy
+The connection to the Plato Engine Block is direct: each engine block is one cell in the tensor grid. The runtime kernel provides the spatial model that connects them. The engine block handles the physical layer (sensors, actuators, ticks); the runtime kernel handles the spatial layer (topology, traversals, contracts).
 
-This crate uses **ternary algebra** (Z₃) where every value is {-1, 0, +1}:
+The assertion traps connect to the SuperInstance verification philosophy: every component should verify its own correctness. The TutorLoop is the runtime expression of the ternary-compiler-optimizer's compile-test cycle, but applied to spatial behavior.
 
-- **+1** → positive signal (healthy, allocated, converged, ready)
-- **0** → neutral (pending, balanced, monitoring, degraded)
-- **-1** → negative signal (failed, free, diverged, overloaded)
+## Related Crates
 
-This isn't arbitrary — ternary is the natural encoding for:
-1. **BitNet b1.58** (Microsoft) — ternary neural networks at 60% less power
-2. **GPU warp voting** — hardware ballot instructions return ternary consensus
-3. **Conservation laws** — {-1, 0, +1} preserves quantity (what goes in must come out)
-
-## Testing
-
-```bash
-git clone https://github.com/SuperInstance/plato-runtime-kernel.git
-cd plato-runtime-kernel
-cargo test
-```
-
-## License
-
-MIT
+- `plato-engine-block` — The atomic room runtime (sensors, actuators, ticks)
+- `plato-room-configs` — Production room configurations (ROOM.json files)
+- `room-cell` — Cellular computation adapting to available resources
+- `pincher` — Agent reflexes that navigate rooms via batons
+- `flux-core` — FLUX bytecode for room logic compilation
+- `oxide-fleet` — Fleet management for room server clusters
