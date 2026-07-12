@@ -1,5 +1,7 @@
 # plato-runtime-kernel
 
+**Plato Engine Block — a sub-400-line room runtime for agent-space interaction.**  
+
 *The spatial spreadsheet engine. Rooms are cells. Cells are tensors. Markdown is the AST. Plain-English bullets are runtime assertions. Delta compression for sync. Three-way merge for conflict. This is the Plato Matrix's brain.*
 
 ## Why This Exists
@@ -129,6 +131,26 @@ The plato-runtime-kernel treats space as a first-class data structure. Rooms are
 The connection to the Plato Engine Block is direct: each engine block is one cell in the tensor grid. The runtime kernel provides the spatial model that connects them. The engine block handles the physical layer (sensors, actuators, ticks); the runtime kernel handles the spatial layer (topology, traversals, contracts).
 
 The assertion traps connect to the SuperInstance verification philosophy: every component should verify its own correctness. The TutorLoop is the runtime expression of the ternary-compiler-optimizer's compile-test cycle, but applied to spatial behavior.
+
+## PLATO Engine Block Family
+
+The Runtime Kernel provides the spatial layer that connects engine blocks:
+
+| Component | Language | Repo | Focus |
+|---|---|---|---|
+| **Runtime Kernel** ← you are here | Rust | [plato-runtime-kernel](https://github.com/SuperInstance/plato-runtime-kernel) | Spatial model: tensor grid, batons, assertion traps |
+| **C Reference** | C99 | [plato-engine-block-c](https://github.com/SuperInstance/plato-engine-block-c) | Embedded, bare-metal, zero heap alloc |
+| **Rust (Original)** | Rust | [plato-engine-block](https://github.com/SuperInstance/plato-engine-block) | `no_std` + alloc, builder pattern, tokio server |
+| **Elixir/OTP** | Elixir | [plato-engine-block-elixir](https://github.com/SuperInstance/plato-engine-block-elixir) | BEAM supervision trees, fault tolerance |
+| **Zig** | Zig | [plato-engine-block-zig](https://github.com/SuperInstance/plato-engine-block-zig) | Comptime ternary packing, cross-compile |
+| **Python Core** | Python | [plato-core](https://github.com/SuperInstance/plato-core) | Foundation types, mesh registry, training tiles |
+| **Server** | Python | [plato-server](https://github.com/SuperInstance/plato-server) | Knowledge tiles, fleet sync via Matrix, HTTP API |
+
+**Specs & Guides:**
+- 📜 [PLATO Wire Protocol](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_WIRE_PROTOCOL.md)
+- 📖 [PLATO Master Guide](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_MASTER_GUIDE.md)
+- 🗺️ [PLATO Ecosystem Map](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_ECOSYSTEM_MAP.md)
+
 
 ## Related Crates
 
