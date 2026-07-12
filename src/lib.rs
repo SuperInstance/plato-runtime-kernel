@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod delta;
 pub mod merge;
@@ -141,6 +142,24 @@ impl Baton {
     /// Get a data field.
     pub fn get_data(&self, key: &str) -> Option<&str> {
         self.operational_data.get(key).map(|s| s.as_str())
+    }
+
+    /// Get the Unix timestamp (seconds since epoch) for cross-layer interop.
+    /// Matches the `t` field in PLATO Wire Protocol v0.1 tick responses.
+    pub fn timestamp(&self) -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+    }
+
+    /// Convert baton tick to a floating-point Unix timestamp for protocol JSON.
+    /// Uses the current system time, matching engine block `t` field format.
+    pub fn timestamp_f64(&self) -> f64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
     }
 }
 
@@ -336,6 +355,8 @@ mod tests {
     #[test] fn test_baton_new() { let b = Baton::new("b1", "/rooms/test"); assert_eq!(b.baton_id, "b1"); assert_eq!(b.tick, 0); }
     #[test] fn test_baton_advance() { let mut b = Baton::new("b1", "/a"); b.advance_to("/b"); assert_eq!(b.current_scope, "/b"); assert_eq!(b.tick, 1); }
     #[test] fn test_baton_data() { let mut b = Baton::new("b1", "/a"); b.set_data("key", "value"); assert_eq!(b.get_data("key"), Some("value")); }
+    #[test] fn test_baton_timestamp() { let b = Baton::new("b1", "/a"); let ts = b.timestamp(); assert!(ts > 0); }
+    #[test] fn test_baton_timestamp_f64() { let b = Baton::new("b1", "/a"); let ts = b.timestamp_f64(); assert!(ts > 0.0); }
 
     // Assertion extraction tests
     #[test] fn test_extract_assertions() { let md = "# Title\n## Behavioral Constraints\n* Must contain SUCCESS\n* Shall not contain ERROR"; let a = extract_assertions(md); assert_eq!(a.len(), 2); }
