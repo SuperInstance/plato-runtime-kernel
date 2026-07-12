@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod delta;
 pub mod merge;
+pub mod wire;
 
 // ============================================================
 // Room Identity — a cell in the tensor

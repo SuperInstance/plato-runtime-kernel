@@ -20,32 +20,50 @@ Agent ←→ [Wire Protocol v0.1] ←→ Engine Block ←→ [Spatial Model] ←
 
 ## Bridge Pattern
 
-To connect a runtime kernel room to a wire protocol engine block:
+The `wire` module provides bidirectional conversion between kernel types and wire protocol JSON:
 
 ```rust
 use plato_runtime_kernel::*;
+use plato_runtime_kernel::wire::*;
 
-// A baton arriving at an engine room carries protocol context
+// 1. Parse an engine block welcome message into a RoomContract
+let welcome = WireWelcome::from_json(
+    r#"{"type":"welcome","room_id":"engine_room","tick_hz":0.2,"sensors":["coolant_temp_c","rpm"]}"#
+).unwrap();
+let contract = welcome.to_room_contract((0, 0));
+// contract now has reflex_bindings for each sensor
+
+// 2. A baton arriving from an engine room carries tick data
 let mut baton = Baton::new("watchdog", "/engine_room");
-baton.set_data("protocol_version", "0.1");
-baton.set_data("room_id", "engine_room");
-
-// The baton's tick corresponds to the engine block's sequence number
+baton.set_data("coolant_temp_c", "96.3");
+baton.set_data("rpm", "1790");
 baton.advance_to("/wheelhouse");
-// Baton.tick == 1 == engine block seq after one tick
+
+// 3. Serialize the baton as a wire protocol tick JSON for downstream agents
+let tick_json = WireTick::from_baton(&baton).to_json();
+// {"type":"tick","t":1749234437.0,"seq":1,"data":{"coolant_temp_c":96.3,"rpm":1790}}
+
+// 4. Send commands to the engine block
+let cmd = cmd_tick();       // "tick"
+let cmd = cmd_history(20);  // "history 20"
+let cmd = cmd_actuator("bilge_pump", 1.0); // "actuator bilge_pump 1"
 ```
 
-The runtime kernel does not need to implement `tick`, `history`, `actuator`, `alarm`,
-`subscribe`, or `quit` commands because it delegates those to the engine block layer.
+The runtime kernel does not implement `tick`, `history`, `actuator`, `alarm`,
+`subscribe`, or `quit` as protocol endpoints (it delegates those to engine blocks).
+The `wire` module provides the **translation layer** so batons can carry
+tick data through the spatial topology and the kernel can parse engine block welcome messages.
 
 ## Cross-Audit Result
 
 | Feature | Status | Note |
 |---------|--------|------|
-| JSON tick response | N/A | Engine block responsibility |
+| JSON tick response | ✅ Bridge | `WireTick::from_baton()` converts Baton to tick JSON |
 | JSON history response | N/A | Engine block responsibility |
+| JSON welcome parsing | ✅ Bridge | `WireWelcome::from_json()` + `to_room_contract()` |
 | Alarm system | N/A | Engine block responsibility |
 | Subscribe/unsubscribe | N/A | Engine block responsibility |
+| Wire command builders | ✅ Bridge | `cmd_tick()`, `cmd_history()`, `cmd_actuator()`, etc. |
 | Spatial topology | ✅ | This repo's purpose |
 | Baton passing | ✅ | This repo's purpose |
 | Assertion traps | ✅ | This repo's purpose |
