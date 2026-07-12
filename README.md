@@ -1,14 +1,43 @@
 # plato-runtime-kernel
 
-**Plato Engine Block — a sub-400-line room runtime for agent-space interaction.**  
+[![CI](https://github.com/SuperInstance/plato-runtime-kernel/actions/workflows/ci.yml/badge.svg)](https://github.com/SuperInstance/plato-runtime-kernel/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Language](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 
-*The spatial spreadsheet engine. Rooms are cells. Cells are tensors. Markdown is the AST. Plain-English bullets are runtime assertions. Delta compression for sync. Three-way merge for conflict. This is the Plato Matrix's brain.*
+> **The spatial spreadsheet engine. Rooms are cells. Cells are tensors. Markdown is the AST. Plain-English bullets are runtime assertions.**
 
-## Why This Exists
+---
 
-The Plato Engine Block (the C/Rust room runtime) handles sensors, actuators, ticks, and text protocols. But a real system has hundreds of rooms that need to be organized, connected, and kept in sync. The plato-runtime-kernel provides the spatial model: rooms as cells in a tensor grid, agents as batons passing between rooms, and Markdown specifications as behavioral contracts.
+## Quick Start
 
-This crate is where the Plato Matrix stops being "a bunch of sensor nodes" and becomes "a coherent space."
+```bash
+git clone https://github.com/SuperInstance/plato-runtime-kernel.git
+cd plato-runtime-kernel
+cargo build
+cargo test
+```
+
+```rust
+use plato_runtime_kernel::*;
+
+let mut baton = Baton::new("watchdog", "/rooms/engine_room");
+baton.set_data("coolant_threshold", "95");
+baton.advance_to("/rooms/wheelhouse");
+
+let spec = "## 🛑 Constraints\n* output must contain OK";
+let result = validate_payload("Status: OK", &extract_assertions(spec));
+assert!(result.passed);
+```
+
+---
+
+## What It Does
+
+The Plato Engine Block (the C/Rust room runtime) handles sensors, actuators, ticks, and text protocols. But a real system has hundreds of rooms that need to be organized, connected, and kept in sync. The plato-runtime-kernel provides the **spatial model**: rooms as cells in a tensor grid, agents as batons passing between rooms, and Markdown specifications as behavioral contracts.
+
+Every room exists at one of five depth levels — from Floor (agents, humans, autonomous behavior) to Metal (raw bits, hardware registers). Rooms can zoom between depths. Agents don't live in rooms — they pass through them, carrying their state in a `Baton`. Traversals are recorded in the room's topology, and over time the traversal weights reveal which rooms are most connected — the spatial equivalent of PageRank. Every room can have a Markdown specification with plain-English behavioral constraints that are validated by assertion traps and a self-correcting `TutorLoop`.
+
+---
 
 ## Architecture
 
@@ -32,8 +61,6 @@ This crate is where the Plato Matrix stops being "a bunch of sensor nodes" and b
 
 ### Five Depth Levels
 
-Every room exists at one of five depths, from macro to micro:
-
 | Depth | Name | Analogy | What lives here |
 |-------|------|---------|----------------|
 | 0 | Floor | Dance floor | Agents, humans, autonomous behavior |
@@ -42,49 +69,28 @@ Every room exists at one of five depths, from macro to micro:
 | 3 | Code | Code editor | Functions, algorithms, logic |
 | 4 | Metal | Transistors | Raw bits, hardware registers, firmware |
 
-A room can zoom between depths. The engine room at Floor depth shows live gauges. At Metal depth, it shows register values.
-
 ### Key Types
 
-- **`RoomIdentity`** — A room's spatial identity: room_id, tensor hash, grid position, depth level
-- **`RoomContract`** — The ROOM.json schema defining a room's borders, topology, and runtime assets
+- **`RoomIdentity`** — Spatial identity: room_id, tensor hash, grid position, depth level
+- **`RoomContract`** — ROOM.json schema defining borders, topology, and runtime assets
 - **`RoomTopology`** — Parent room, adjacent rooms, traversal history with weights
-- **`Baton`** — Immutable execution state passing through rooms. An agent's "carry-on luggage."
+- **`Baton`** — Immutable execution state passing through rooms (agent's "carry-on luggage")
 - **`AssertionResult`** — Validation of output against plain-English behavioral constraints
 - **`GridBridge`** — Maps spreadsheet cell coordinates to room paths
 - **`TutorLoop`** — The compile-test-refine cycle: generate output, validate against spec, iterate
 
-### The Baton Pattern
+This is the **spatial layer** of the SuperInstance PLATO ecosystem. The engine block ([C](https://github.com/SuperInstance/plato-engine-block-c), [Rust](https://github.com/SuperInstance/plato-engine-block)) handles the physical layer (sensors, actuators, ticks); the runtime kernel handles the spatial layer (topology, traversals, contracts).
 
-Agents don't live in rooms — they pass through them. A Baton carries the agent's state from room to room:
+---
 
-```rust
-let mut baton = Baton::new("watchdog", "/rooms/engine_room");
-baton.set_data("coolant_threshold", "95");
-baton.advance_to("/rooms/wheelhouse");
-// Baton now in wheelhouse, carrying engine room data
-```
+## API / Usage
 
-Traversals are recorded in the room's topology. Over time, the traversal weights reveal which rooms are most connected — the spatial equivalent of PageRank.
-
-### Assertion Traps
-
-Every room can have a Markdown specification with a `## Behavioral Constraints` section. The runtime extracts these as plain-English assertions:
-
-```markdown
-## 🛑 Behavioral Constraints
-* Output must contain Resource ID
-* Shall not contain CRITICAL
-```
-
-The `validate_payload` function checks output against these. The `TutorLoop` cycles until all assertions pass. This is the self-correcting mechanism: rooms don't just run, they verify they're running correctly.
-
-## Usage
+### Create a Room Contract
 
 ```rust
 use plato_runtime_kernel::*;
+use std::collections::HashMap;
 
-// Create a room contract
 let mut contract = RoomContract {
     room_id: "/engine_room".into(),
     identity: RoomIdentity {
@@ -104,37 +110,48 @@ let mut contract = RoomContract {
     },
 };
 
-// Record traversal (agent moved to wheelhouse)
 contract.record_traversal("/wheelhouse", "watchdog_baton", 42);
+```
 
-// Create a baton and pass it through rooms
+### Baton Pattern
+
+```rust
 let mut baton = Baton::new("watchdog", "/engine_room");
 baton.set_data("coolant_temp", "96.3");
 baton.advance_to("/wheelhouse");
+// Baton now in wheelhouse, carrying engine room data
+```
 
-// Validate against behavioral constraints
+### Assertion Traps + TutorLoop
+
+```rust
 let spec = "## 🛑 Constraints\n* output must contain OK\n* shall not contain ERROR";
 let result = validate_payload("Status: OK, temp: 96.3", &extract_assertions(spec));
 assert!(result.passed);
 
-// Tutor loop: iterate until assertions pass
 let mut tutor = TutorLoop::new(5);
 let output = generate_output();
 let result = tutor.cycle(&output, spec);
 if result.passed { /* good to go */ }
 ```
 
-## The Deeper Idea
+---
 
-The plato-runtime-kernel treats space as a first-class data structure. Rooms aren't just endpoints — they're cells in a tensor. The grid position, depth level, and traversal weights form a rich spatial graph that agents can navigate and reason about.
+## Testing
 
-The connection to the Plato Engine Block is direct: each engine block is one cell in the tensor grid. The runtime kernel provides the spatial model that connects them. The engine block handles the physical layer (sensors, actuators, ticks); the runtime kernel handles the spatial layer (topology, traversals, contracts).
+```bash
+cargo test
+```
 
-The assertion traps connect to the SuperInstance verification philosophy: every component should verify its own correctness. The TutorLoop is the runtime expression of the ternary-compiler-optimizer's compile-test cycle, but applied to spatial behavior.
+---
+
+## Contributing
+
+Contributions are welcome! See the [SuperInstance Contributing Guide](https://github.com/SuperInstance/SuperInstance/blob/main/CONTRIBUTING.md).
+
+---
 
 ## PLATO Engine Block Family
-
-The Runtime Kernel provides the spatial layer that connects engine blocks:
 
 | Component | Language | Repo | Focus |
 |---|---|---|---|
@@ -142,24 +159,9 @@ The Runtime Kernel provides the spatial layer that connects engine blocks:
 | **C Reference** | C99 | [plato-engine-block-c](https://github.com/SuperInstance/plato-engine-block-c) | Embedded, bare-metal, zero heap alloc |
 | **Rust (Original)** | Rust | [plato-engine-block](https://github.com/SuperInstance/plato-engine-block) | `no_std` + alloc, builder pattern, tokio server |
 | **Elixir/OTP** | Elixir | [plato-engine-block-elixir](https://github.com/SuperInstance/plato-engine-block-elixir) | BEAM supervision trees, fault tolerance |
-| **Zig** | Zig | [plato-engine-block-zig](https://github.com/SuperInstance/plato-engine-block-zig) | Comptime ternary packing, cross-compile |
-| **Python Core** | Python | [plato-core](https://github.com/SuperInstance/plato-core) | Foundation types, mesh registry, training tiles |
 | **Server** | Python | [plato-server](https://github.com/SuperInstance/plato-server) | Knowledge tiles, fleet sync via Matrix, HTTP API |
 
-**Specs & Guides:**
-- 📜 [PLATO Wire Protocol](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_WIRE_PROTOCOL.md)
-- 📖 [PLATO Master Guide](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_MASTER_GUIDE.md)
-- 🗺️ [PLATO Ecosystem Map](https://github.com/SuperInstance/AI-Writings/blob/main/PLATO_ECOSYSTEM_MAP.md)
-
-
-## Related Crates
-
-- `plato-engine-block` — The atomic room runtime (sensors, actuators, ticks)
-- `plato-room-configs` — Production room configurations (ROOM.json files)
-- `room-cell` — Cellular computation adapting to available resources
-- `pincher` — Agent reflexes that navigate rooms via batons
-- `flux-core` — FLUX bytecode for room logic compilation
-- `oxide-fleet` — Fleet management for room server clusters
+---
 
 ## Ecosystem
 
@@ -213,9 +215,15 @@ This repo is part of the **SuperInstance** flagship ecosystem — agent-first co
 |----------|---------|---------|
 | **PyPI** | `flux-vm` | `pip install flux-vm` |
 | **crates.io** | `fluxvm` | `cargo add fluxvm` |
-| **npm** | `flux-js` | `npm install flux-js` *(coming soon)* |
+| **npm** | `flux-js` | `npm install flux-js` |
 
 ### Philosophy & Architecture
 
 - 📖 [AI-Writings](https://github.com/SuperInstance/AI-Writings) — Philosophy, essays, and design rationale
 - 📦 [PACKAGES.md](https://github.com/SuperInstance/SuperInstance/blob/main/PACKAGES.md) — Full package index
+
+---
+
+## License
+
+MIT
