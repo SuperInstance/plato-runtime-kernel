@@ -41,3 +41,23 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  release-invariant:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A release must not be published for an artefact that was not published
+        run: |
+          set -uo pipefail
+          fail=0
+          if grep -q 'continue-on-error: true' .github/workflows/release.yml; then
+            echo "::error::release.yml swallows a publish failure with continue-on-error"
+            fail=1
+          fi
+          # -A8, not -A3: the gate is allowed to sit behind explanatory comments.
+          if ! grep -A8 'name: Create GitHub Release' .github/workflows/release.yml \
+               | grep -q 'steps.publish.outcome'; then
+            echo "::error::Create GitHub Release must be gated on steps.publish.outcome"
+            fail=1
+          fi
+          exit $fail
